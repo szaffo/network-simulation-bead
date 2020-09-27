@@ -101,6 +101,15 @@ class Route:
         index = [route.getEndpoints() for route in routes].index(endpoints)
         return routes[index]
 
+    @staticmethod
+    def getAllPossibleRoute(endpoints, routes):
+        possibleRoutes = []
+        for route in routes:
+            if route.getEndpoints() == endpoints:
+                possibleRoutes.append(route)
+
+        return possibleRoutes
+
 
 class Simulation:
 
@@ -125,18 +134,21 @@ class Simulation:
 
                 success = self.allocate(
                     demand['demand'], demand['end-points'], demand['end-time'])
-                
+
                 self.printer.allocation(
                     demand['end-points'], self.time, success)
 
             self.time += 1
 
     def allocate(self, amount, points, until):
-        route = Route.getRoute(points, self.routes)
-        result = route.demand(amount)
+        routes = Route.getAllPossibleRoute(points, self.routes)
+        for route in routes:
+            result = route.demand(amount)
 
-        if result:
-            self.storeDemand(route, amount, until)
+            if result:
+                self.storeDemand(route, amount, until)
+                break
+
 
         return result
 
@@ -148,14 +160,17 @@ class Simulation:
         })
 
     def free(self):
+        newAllocations = []
         for allocation in self.allocations:
-            if allocation['until'] != self.time:
+            if allocation['until'] > self.time:
+                newAllocations.append(allocation)
                 continue
 
             allocation['route'].free(allocation['amount'])
-            self.allocations.remove(allocation)
             self.printer.unAllocation(
                 allocation['route'].getEndpoints(), self.time)
+
+        self.allocations = newAllocations
 
     @classmethod
     def createSimulationFromFile(cls):
@@ -164,7 +179,6 @@ class Simulation:
         routes = populateRoutes(linkCollection, data['possible-circuits'])
 
         return cls.createFromSimulationData(data['simulation'], routes)
-
 
     @classmethod
     def createFromSimulationData(cls, simulationData, routes):
@@ -196,8 +210,6 @@ class Printer:
             endpoints[1],
             time
         ))
-
-
 
 
 def getInput():
