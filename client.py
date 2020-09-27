@@ -42,6 +42,9 @@ class Link:
         ends.sort()
         return ends
 
+    def free(self, amount):
+        self.used -= amount
+
 
 class Route:
 
@@ -90,6 +93,112 @@ class Route:
     def getEnd(self):
         return self.getEndpoints()[1]
 
+    def free(self, amount):
+        [link.free(amount) for link in self.links]
+
+    @staticmethod
+    def getRoute(endpoints, routes):
+        index = [route.getEndpoints() for route in routes].index(endpoints)
+        return routes[index]
+
+
+class Simulation:
+
+    def __init__(self, duration, demands, routes):
+        self.duration = duration
+        self.time = 0
+
+        self.demands = demands
+        self.allocations = []
+
+        self.routes = routes
+
+        self.printer = Printer()
+
+    def run(self):
+        while self.time <= self.duration:
+            self.free()
+
+            for demand in self.demands:
+                if demand['start-time'] != self.time:
+                    continue
+
+                success = self.allocate(
+                    demand['demand'], demand['end-points'], demand['end-time'])
+                
+                self.printer.allocation(
+                    demand['end-points'], self.time, success)
+
+            self.time += 1
+
+    def allocate(self, amount, points, until):
+        route = Route.getRoute(points, self.routes)
+        result = route.demand(amount)
+
+        if result:
+            self.storeDemand(route, amount, until)
+
+        return result
+
+    def storeDemand(self, route, amount, until):
+        self.allocations.append({
+            'route': route,
+            'amount': amount,
+            'until': until
+        })
+
+    def free(self):
+        for allocation in self.allocations:
+            if allocation['until'] != self.time:
+                continue
+
+            allocation['route'].free(allocation['amount'])
+            self.allocations.remove(allocation)
+            self.printer.unAllocation(
+                allocation['route'].getEndpoints(), self.time)
+
+    @classmethod
+    def createSimulationFromFile(cls):
+        data = getInput()
+        linkCollection = populateLinks(data['links'])
+        routes = populateRoutes(linkCollection, data['possible-circuits'])
+
+        return cls.createFromSimulationData(data['simulation'], routes)
+
+
+    @classmethod
+    def createFromSimulationData(cls, simulationData, routes):
+        duration = simulationData['duration']
+        demands = simulationData['demands']
+        return cls(duration, demands, routes)
+
+
+class Printer:
+
+    def __init__(self):
+        self.eventCount = 0
+
+    def allocation(self, endpoints, time, succes):
+        self.eventCount += 1
+        print("{}. igény foglalás:: {}<->{} st:{} – {}".format(
+            self.eventCount,
+            endpoints[0],
+            endpoints[1],
+            time,
+            ('sikeres' if succes else 'sikertelen')
+        ))
+
+    def unAllocation(self, endpoints, time):
+        self.eventCount += 1
+        print("{}. igény felszabadítás: {}<->{} st:{}".format(
+            self.eventCount,
+            endpoints[0],
+            endpoints[1],
+            time
+        ))
+
+
+
 
 def getInput():
     inputFile = sys.argv[1]
@@ -111,12 +220,11 @@ def populateRoutes(links, circuits):
 
 if __name__ == "__main__":
 
-    data = getInput()
-    linkCollection = populateLinks(data['links'])
-    routes = populateRoutes(linkCollection, data['possible-circuits'])
+    simulation = Simulation.createSimulationFromFile()
+    simulation.run()
 
-    print(len(routes))
-    [print('->'.join(route.points)) for route in routes]
-    can = [route.demand(10) for route in routes]
-    [print(route) for route in routes]
-    print(can)
+    # print(len(routes))
+    # [print('->'.join(route.points)) for route in routes]
+    # can = [route.demand(10) for route in routes]
+    # [print(route) for route in routes]
+    # print(can)
